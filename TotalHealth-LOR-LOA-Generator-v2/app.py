@@ -548,26 +548,184 @@ elif mode == "Multi-Meeting Package":
 
 
 # ============================================================================
-# MODE 3: EXCEL BULK (Simplified - show instructions)
+# MODE 3: EXCEL BULK
 # ============================================================================
 
 else:  # Excel Bulk
     st.header("📊 Excel Bulk Generator")
-    st.info("⚠️ Excel Bulk Mode is available in the full version. For now, use Single Event or Multi-Meeting mode.")
+    st.info("💡 Upload an Excel file to generate hundreds of letters automatically!")
 
-    st.markdown("""
-    ### Coming Soon
+    from services.excel_processor import (
+        ExcelProcessor,
+        create_excel_template,
+        generate_validation_report
+    )
 
-    The Excel Bulk mode allows you to:
-    - Upload an Excel spreadsheet with multiple events
-    - Auto-match event names to system events
-    - Generate hundreds of letters in seconds
-    - Download as organized ZIP file
+    # Step 1: Download Template
+    st.subheader("1️⃣ Download Template")
 
-    **For now, please use:**
-    - **Single Event** for individual letters
-    - **Multi-Meeting Package** for multi-event sponsorships
-    """)
+    col1, col2 = st.columns([2, 1])
+
+    with col1:
+        st.markdown("""
+        Download the Excel template to see the required format. Fill in your data and upload below.
+
+        **Required Columns:**
+        - Exhibitor Invite (company name)
+        - Event Name (will be auto-matched)
+        - Total (amount with currency symbol)
+
+        **Optional Columns:**
+        - Official Address
+        - Expected Attendance
+        """)
+
+    with col2:
+        template_buffer = create_excel_template()
+        st.download_button(
+            "📥 Download Excel Template",
+            data=template_buffer,
+            file_name="LOA_LOR_Bulk_Template.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True
+        )
+
+    st.markdown("---")
+
+    # Step 2: Upload File
+    st.subheader("2️⃣ Upload Your Excel File")
+
+    uploaded_file = st.file_uploader(
+        "Choose Excel file (.xlsx)",
+        type=['xlsx'],
+        help="Upload your completed Excel file with event data"
+    )
+
+    if uploaded_file:
+        # Validate file
+        from core.security import SecurityAudit
+        is_valid, error_msg = SecurityAudit.validate_file_upload(uploaded_file)
+
+        if not is_valid:
+            st.error(f"❌ {error_msg}")
+        else:
+            st.success(f"✅ File uploaded: {uploaded_file.name} ({uploaded_file.size / 1024:.1f} KB)")
+
+            # Step 3: Parse and Validate
+            st.subheader("3️⃣ Validation & Event Matching")
+
+            with st.spinner("Parsing Excel file..."):
+                rows, parse_errors = ExcelProcessor.parse_excel_file(uploaded_file)
+
+            if parse_errors:
+                st.error("❌ File Parsing Errors:")
+                for error in parse_errors:
+                    st.error(f"  - {error}")
+            else:
+                st.success(f"✅ Parsed {len(rows)} rows successfully")
+
+                # Match events
+                with st.spinner("Matching events to system database..."):
+                    rows = ExcelProcessor.match_events(rows)
+
+                # Generate validation report
+                validation_report = generate_validation_report(rows)
+
+                # Show stats
+                valid_count = len([r for r in rows if not r.has_errors()])
+                error_count = len([r for r in rows if r.has_errors()])
+
+                col1, col2, col3 = st.columns(3)
+
+                with col1:
+                    st.metric("Total Rows", len(rows))
+
+                with col2:
+                    st.metric("Valid Rows", valid_count, delta="Ready")
+
+                with col3:
+                    st.metric("Errors", error_count, delta="Need fixing" if error_count > 0 else None)
+
+                # Show validation details
+                with st.expander("📋 View Validation Report", expanded=error_count > 0):
+                    st.markdown(validation_report)
+
+                # Step 4: Generate Documents
+                if valid_count > 0:
+                    st.markdown("---")
+                    st.subheader("4️⃣ Generate Documents")
+
+                    col1, col2 = st.columns(2)
+
+                    with col1:
+                        bulk_doc_type = st.selectbox(
+                            "Document Type:",
+                            ["LOR", "LOA"],
+                            key="bulk_doc_type",
+                            help="Select LOR or LOA"
+                        )
+
+                    with col2:
+                        if bulk_doc_type == "LOA":
+                            bulk_signatory = st.selectbox(
+                                "Signatory:",
+                                options=list(AUTHORIZED_SIGNATORIES.keys()),
+                                format_func=lambda k: AUTHORIZED_SIGNATORIES[k]["name"],
+                                key="bulk_signatory"
+                            )
+                        else:
+                            bulk_signatory = "sarah"
+
+                    st.markdown("")
+
+                    if st.button(
+                        f"🚀 Generate {valid_count} {bulk_doc_type}s",
+                        type="primary",
+                        use_container_width=True
+                    ):
+                        with st.spinner(f"Generating {valid_count} documents... This may take a minute..."):
+                            zip_buffer, success_count, gen_error_count = ExcelProcessor.generate_batch_documents(
+                                rows=[r for r in rows if not r.has_errors()],
+                                document_type=bulk_doc_type,
+                                signatory_key=bulk_signatory if bulk_doc_type == "LOA" else "sarah"
+                            )
+
+                            # Log bulk generation
+                            log_generation(
+                                company_name=f"Bulk Upload - {len(rows)} companies",
+                                meeting_name=f"Excel Bulk ({valid_count} events)",
+                                document_type=bulk_doc_type,
+                                booth_selected="Bulk",
+                                add_ons=[],
+                                total_cost=0.0,
+                                mode="excel-bulk"
+                            )
+
+                            if success_count > 0:
+                                st.success(f"✅ Successfully generated {success_count} documents!")
+
+                                if gen_error_count > 0:
+                                    st.warning(f"⚠️ {gen_error_count} documents failed to generate")
+
+                                # Download button
+                                st.download_button(
+                                    "📦 Download ZIP File (All Documents)",
+                                    data=zip_buffer,
+                                    file_name=f"Bulk_{bulk_doc_type}s_{len(rows)}_documents.zip",
+                                    mime="application/zip",
+                                    use_container_width=True
+                                )
+
+                                st.balloons()
+
+                            else:
+                                st.error("❌ All documents failed to generate. Please check validation report.")
+
+                else:
+                    st.warning("⚠️ No valid rows to generate. Please fix errors and re-upload.")
+
+    else:
+        st.info("👆 Upload an Excel file to begin batch generation")
 
 
 # ============================================================================
