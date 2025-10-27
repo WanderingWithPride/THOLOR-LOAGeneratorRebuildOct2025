@@ -137,6 +137,7 @@ class MultiMeetingService:
             "additional_info": package.additional_info or self._generate_event_list_text(package.events),
             "document_type": package.document_type,
             "event_year": 2025,  # Default year
+            "signature_person": package.signature_person,
         }
 
         return payload
@@ -210,7 +211,8 @@ def create_multi_meeting_package(
     events_configs: List[Dict],
     document_type: str = "LOR",
     additional_info: str = "",
-    company_address: str = ""
+    company_address: str = "",
+    signature_person: str = None
 ) -> MultiMeetingPackage:
     """
     Convenience function to create multi-meeting package
@@ -221,17 +223,24 @@ def create_multi_meeting_package(
         document_type: "LOR" or "LOA"
         additional_info: Additional requirements
         company_address: Company address
+        signature_person: Name and title of signatory (for LOA)
 
     Returns:
         MultiMeetingPackage object
     """
-    return MultiMeetingService.create_package(
+    package = MultiMeetingService.create_package(
         company_name=company_name,
         events_configs=events_configs,
         document_type=document_type,
         additional_info=additional_info,
         company_address=company_address
     )
+
+    # Add signature person if provided
+    if signature_person:
+        package.signature_person = signature_person
+
+    return package
 
 
 def generate_multi_meeting_documents(package: MultiMeetingPackage) -> tuple:
