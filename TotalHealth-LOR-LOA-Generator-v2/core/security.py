@@ -13,16 +13,17 @@ from config.settings import SECURITY_CONFIG, LOGGING_CONFIG, LOGO_PATHS
 # INPUT SANITIZATION
 # ============================================================================
 
-def sanitize_input(text: Optional[str], max_length: int = None) -> str:
+def sanitize_input(text: Optional[str], max_length: int = None, preserve_common: bool = True) -> str:
     """
     Sanitize user input to prevent injection attacks
 
     Args:
         text: Input text to sanitize
         max_length: Maximum allowed length (default from config)
+        preserve_common: If True, preserve common business characters (&, parentheses, hyphens)
 
     Returns:
-        Sanitized string with dangerous characters removed
+        Sanitized string with dangerous characters removed/escaped
     """
     if not text:
         return ""
@@ -30,11 +31,23 @@ def sanitize_input(text: Optional[str], max_length: int = None) -> str:
     if max_length is None:
         max_length = LOGGING_CONFIG["max_input_length"]
 
-    # Remove potentially dangerous characters
-    dangerous_chars = LOGGING_CONFIG["dangerous_chars"]
     sanitized = text
 
-    for char in dangerous_chars:
+    # Define characters to preserve in business names
+    safe_chars = {'&', '(', ')', '-', '.', ',', '/', ' ', "'"}
+
+    # Get dangerous characters list
+    dangerous_chars = LOGGING_CONFIG["dangerous_chars"]
+
+    if preserve_common:
+        # Remove only truly dangerous characters, preserve business-safe ones
+        chars_to_remove = [char for char in dangerous_chars if char not in safe_chars]
+    else:
+        # Remove all dangerous characters (use for untrusted contexts)
+        chars_to_remove = dangerous_chars
+
+    # Remove dangerous characters
+    for char in chars_to_remove:
         sanitized = sanitized.replace(char, '')
 
     # Limit length
@@ -43,12 +56,13 @@ def sanitize_input(text: Optional[str], max_length: int = None) -> str:
     return sanitized
 
 
-def sanitize_dict(data: dict) -> dict:
+def sanitize_dict(data: dict, preserve_common: bool = True) -> dict:
     """
     Sanitize all string values in a dictionary
 
     Args:
         data: Dictionary with potentially unsafe strings
+        preserve_common: If True, preserve common business characters
 
     Returns:
         Dictionary with all strings sanitized
@@ -57,12 +71,12 @@ def sanitize_dict(data: dict) -> dict:
 
     for key, value in data.items():
         if isinstance(value, str):
-            sanitized[key] = sanitize_input(value)
+            sanitized[key] = sanitize_input(value, preserve_common=preserve_common)
         elif isinstance(value, dict):
-            sanitized[key] = sanitize_dict(value)
+            sanitized[key] = sanitize_dict(value, preserve_common=preserve_common)
         elif isinstance(value, list):
             sanitized[key] = [
-                sanitize_input(item) if isinstance(item, str) else item
+                sanitize_input(item, preserve_common=preserve_common) if isinstance(item, str) else item
                 for item in value
             ]
         else:
