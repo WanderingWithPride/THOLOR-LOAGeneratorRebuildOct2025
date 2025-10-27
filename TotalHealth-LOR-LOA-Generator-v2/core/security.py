@@ -5,7 +5,8 @@ Authentication, password management, and input sanitization
 import streamlit as st
 from datetime import datetime, timedelta
 from typing import Optional, Tuple
-from config.settings import SECURITY_CONFIG, LOGGING_CONFIG
+from pathlib import Path
+from config.settings import SECURITY_CONFIG, LOGGING_CONFIG, LOGO_PATHS
 
 
 # ============================================================================
@@ -118,40 +119,58 @@ class AuthenticationManager:
 
         # Check if password needs to be entered
         if "password_correct" not in st.session_state:
-            # First run, show password input
-            st.text_input(
-                "Password",
-                type="password",
-                on_change=password_entered,
-                key="password"
-            )
+            # First run, show branded login page
+            AuthenticationManager._show_login_page(password_entered)
             return False
 
         # Check if password has expired
         elif AuthenticationManager._is_password_expired():
-            st.text_input(
-                "Password",
-                type="password",
-                on_change=password_entered,
-                key="password"
-            )
+            AuthenticationManager._show_login_page(password_entered)
             st.error(f"⏰ Password has expired ({SECURITY_CONFIG['password_expiry_hours']}-hour limit reached)")
             return False
 
         # Check if password is incorrect
         elif not st.session_state["password_correct"]:
-            st.text_input(
-                "Password",
-                type="password",
-                on_change=password_entered,
-                key="password"
-            )
+            AuthenticationManager._show_login_page(password_entered)
             st.error("😕 Password incorrect")
             return False
 
         else:
             # Password correct and not expired
             return True
+
+    @staticmethod
+    def _show_login_page(password_callback):
+        """Display branded login page with logo"""
+        # Center the login form
+        col1, col2, col3 = st.columns([1, 2, 1])
+
+        with col2:
+            # Try to display logo
+            logo_path = None
+            for path in LOGO_PATHS:
+                if path.exists():
+                    logo_path = path
+                    break
+
+            if logo_path:
+                st.image(str(logo_path), width=300)
+            else:
+                st.markdown("## 📄 Total Health Conferencing")
+
+            st.markdown("### LOR/LOA Generator")
+            st.markdown("---")
+
+            # Password input
+            st.text_input(
+                "Enter Password",
+                type="password",
+                on_change=password_callback,
+                key="password",
+                placeholder="Enter your password"
+            )
+
+            st.caption("🔒 Secure access for authorized users only")
 
     @staticmethod
     def _set_authenticated(role: str):
