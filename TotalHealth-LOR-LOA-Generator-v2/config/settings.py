@@ -30,22 +30,27 @@ SARAH_INFO = {
 
 
 # ============================================================================
-# MICHAEL'S INFORMATION (Alternative Signatory)
+# MICHAEL'S INFORMATION (Business Operations Manager)
 # ============================================================================
 
 MICHAEL_INFO = {
     "name": "Michael Eisinger",
-    "title": "Chief Executive Officer, Total Health Conferencing",
+    "title": "Manager, Business Operations",
+    "credentials": "MA",
+    "email": "michael@totalhealthoncology.com",
+    "phone": "(202) 834-3330",
 }
 
 
 # ============================================================================
-# MAUREEN'S INFORMATION (Authorized LOA Signatory)
+# MAUREEN'S INFORMATION (Director, Sales and Operations)
 # ============================================================================
 
 MAUREEN_INFO = {
-    "name": "Maureen",
-    "title": "Authorized Signatory, Total Health Conferencing",
+    "name": "Maureen Louden",
+    "name_previous": "Maureen Schnepf",
+    "title": "Director, Sales and Operations",
+    "email": "maureen@totalhealthoncology.com",
 }
 
 

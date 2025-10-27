@@ -3,13 +3,14 @@ LOA Generator - Total Health Conferencing
 Generates Letters of Agreement for conference sponsorship
 """
 import datetime as dt
-from typing import List, Dict
+from typing import List, Dict, Optional
 from io import BytesIO
 from generators.base import BaseDocumentGenerator, parse_additional_info
 from generators.docx_builder import DOCXBuilder
 from generators.pdf_builder import PDFBuilder
 from config.pricing import ADD_ON_BULLETS, currency
 from config.settings import COMPANY_INFO
+from core.signature_generator import get_signature_for_person
 
 
 class LOAGenerator(BaseDocumentGenerator):
@@ -325,6 +326,19 @@ class LOAGenerator(BaseDocumentGenerator):
 
         # Add signatory info from payload
         signature_person = self.payload.get("signature_person", "Sarah Louden - Founder and Executive Director, Total Health Conferencing")
+
+        # Determine signatory key for signature lookup
+        signatory_key = "sarah"  # default
+        if "Michael" in signature_person:
+            signatory_key = "michael"
+        elif "Maureen" in signature_person:
+            signatory_key = "maureen"
+
+        # Try to add signature image
+        signature_buffer = get_signature_for_person(signatory_key)
+        if signature_buffer:
+            builder.add_signature(signature_buffer.read())
+            builder.add_blank_line()
 
         if " - " in signature_person:
             name, title = signature_person.split(" - ", 1)
