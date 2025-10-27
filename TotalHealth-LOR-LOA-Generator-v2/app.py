@@ -25,7 +25,10 @@ from config.pricing import (
     get_booth_prices, BOOTH_TIER_LABELS, get_add_ons_pricing,
     ADD_ON_CATEGORIES, DISCOUNT_OPTIONS, currency
 )
-from config.settings import SARAH_INFO, COMPLIANCE_TEMPLATES, AUTHORIZED_SIGNATORIES
+from config.settings import (
+    SARAH_INFO, COMPLIANCE_TEMPLATES, AUTHORIZED_SIGNATORIES,
+    LOGO_PATHS, USE_BEST_OF_ASCO_NAMING
+)
 from core.models import DocumentPayload
 from core.pricing_calc import PricingEngine
 from core.logger import log_generation, get_recent_activity, get_activity_stats
@@ -33,14 +36,87 @@ from generators.lor_generator import generate_lor
 from generators.loa_generator import generate_loa
 from services.multi_meeting import create_multi_meeting_package, generate_multi_meeting_documents
 import datetime as dt
+from pathlib import Path
 
 
 # ============================================================================
-# PAGE HEADER
+# CUSTOM STYLING
 # ============================================================================
 
-st.title("📄 LOR/LOA Generator")
-st.markdown("**Total Health Conferencing** - Professional Document Generation System")
+st.markdown("""
+<style>
+    /* Main title styling */
+    h1 {
+        color: #013955;
+        font-weight: 600;
+    }
+
+    /* Subheader styling */
+    h2, h3 {
+        color: #4a8499;
+    }
+
+    /* Button styling */
+    .stButton > button {
+        background-color: #013955;
+        color: white;
+        border-radius: 8px;
+        padding: 0.5rem 1rem;
+        font-weight: 500;
+    }
+
+    .stButton > button:hover {
+        background-color: #4a8499;
+        border-color: #4a8499;
+    }
+
+    /* Sidebar styling */
+    [data-testid="stSidebar"] {
+        background-color: #f0f2f6;
+    }
+
+    /* Metric styling */
+    [data-testid="stMetricValue"] {
+        color: #013955;
+        font-weight: 600;
+    }
+
+    /* Success message */
+    .stSuccess {
+        background-color: #d4edda;
+        border-left: 4px solid #28a745;
+    }
+
+    /* Info message */
+    .stInfo {
+        background-color: #d1ecf1;
+        border-left: 4px solid #0c5460;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+
+# ============================================================================
+# PAGE HEADER WITH LOGO
+# ============================================================================
+
+# Try to display logo
+logo_path = None
+for path in LOGO_PATHS:
+    if path.exists():
+        logo_path = path
+        break
+
+col1, col2 = st.columns([1, 4])
+
+with col1:
+    if logo_path:
+        st.image(str(logo_path), width=150)
+
+with col2:
+    st.title("📄 LOR/LOA Generator")
+    st.markdown("**Total Health Conferencing** - Professional Document Generation System")
+
 st.markdown("---")
 
 
@@ -78,6 +154,29 @@ with st.sidebar:
         )
 
     st.markdown("---")
+
+    # ASCO Naming Toggle
+    st.subheader("⚙️ Settings")
+
+    # Initialize session state for ASCO naming
+    if 'use_best_of_asco' not in st.session_state:
+        st.session_state.use_best_of_asco = USE_BEST_OF_ASCO_NAMING
+
+    use_best_of_asco = st.toggle(
+        "Use 'Best of ASCO' naming",
+        value=st.session_state.use_best_of_asco,
+        help="Toggle between 'ASCO Direct' and 'Best of ASCO' for 2026 events",
+        key="asco_toggle"
+    )
+
+    st.session_state.use_best_of_asco = use_best_of_asco
+
+    if use_best_of_asco:
+        st.caption("✅ Using **Best of ASCO** for 2026")
+    else:
+        st.caption("ℹ️ Using **ASCO Direct** for 2026")
+
+    st.markdown("---")
     st.caption(f"👤 Logged in as: {st.session_state.get('user_role', 'User')}")
 
 
@@ -102,8 +201,15 @@ if mode == "Single Event":
     else:
         events = all_events
 
-    # Event dropdown
-    event_names = [f"{e.meeting_name} - {e.meeting_date_long}" for e in events]
+    # Event dropdown with ASCO naming toggle
+    def format_event_name(event):
+        """Format event name based on ASCO naming toggle"""
+        name = event.meeting_name
+        if st.session_state.use_best_of_asco and "ASCO Direct" in name:
+            name = name.replace("ASCO Direct", "Best of ASCO")
+        return f"{name} - {event.meeting_date_long}"
+
+    event_names = [format_event_name(e) for e in events]
 
     if not events:
         st.warning("No events found. Try a different search term.")
@@ -117,6 +223,10 @@ if mode == "Single Event":
     )
 
     selected_event = events[selected_event_idx]
+
+    # Apply ASCO naming to selected event
+    if st.session_state.use_best_of_asco and "ASCO Direct" in selected_event.meeting_name:
+        selected_event.meeting_name = selected_event.meeting_name.replace("ASCO Direct", "Best of ASCO")
 
     # Company information
     st.subheader("2️⃣ Company Information")
