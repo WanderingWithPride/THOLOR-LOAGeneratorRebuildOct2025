@@ -67,6 +67,7 @@ class MultiMeetingPackage:
     document_type: str = "LOR"
     additional_info: Optional[str] = None
     company_address: Optional[str] = None
+    signature_person: Optional[str] = None
 
     def add_event(self, event: Dict, booth_price: float = 0.0, addon_cost: float = 0.0):
         """Add an event to the package"""

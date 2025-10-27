@@ -25,7 +25,7 @@ from config.pricing import (
     get_booth_prices, BOOTH_TIER_LABELS, get_add_ons_pricing,
     ADD_ON_CATEGORIES, DISCOUNT_OPTIONS, currency
 )
-from config.settings import SARAH_INFO, COMPLIANCE_TEMPLATES
+from config.settings import SARAH_INFO, COMPLIANCE_TEMPLATES, AUTHORIZED_SIGNATORIES
 from core.models import DocumentPayload
 from core.pricing_calc import PricingEngine
 from core.logger import log_generation, get_recent_activity, get_activity_stats
@@ -65,6 +65,17 @@ with st.sidebar:
         options=["LOR", "LOA"],
         help="LOR = Letter of Request, LOA = Letter of Agreement"
     )
+
+    # Signatory selection (only for LOA)
+    signatory_key = "sarah"  # Default
+    if doc_type == "LOA":
+        st.markdown("---")
+        signatory_key = st.selectbox(
+            "Signatory:",
+            options=list(AUTHORIZED_SIGNATORIES.keys()),
+            format_func=lambda k: AUTHORIZED_SIGNATORIES[k]["name"],
+            help="Select who will sign this LOA"
+        )
 
     st.markdown("---")
     st.caption(f"👤 Logged in as: {st.session_state.get('user_role', 'User')}")
@@ -218,6 +229,10 @@ if mode == "Single Event":
             st.error("Please enter a company address for LOA")
         else:
             with st.spinner("Generating documents..."):
+                # Get signatory info
+                signatory_info = AUTHORIZED_SIGNATORIES.get(signatory_key, AUTHORIZED_SIGNATORIES["sarah"])
+                signatory_name = f"{signatory_info['name']} - {signatory_info['title']}"
+
                 # Create payload
                 payload = DocumentPayload(
                     company_name=company_name,
@@ -239,7 +254,8 @@ if mode == "Single Event":
                     attendance_expected=attendance if attendance > 0 else None,
                     document_type=doc_type,
                     event_year=event_year,
-                    agreement_date=dt.date.today().strftime("%B %d, %Y") if doc_type == "LOA" else None
+                    agreement_date=dt.date.today().strftime("%B %d, %Y") if doc_type == "LOA" else None,
+                    signature_person=signatory_name if doc_type == "LOA" else SARAH_INFO["name"] + " - " + SARAH_INFO["title"]
                 )
 
                 # Generate documents
@@ -367,12 +383,17 @@ elif mode == "Multi-Meeting Package":
                 st.error("Please enter a company name")
             else:
                 with st.spinner("Generating package..."):
+                    # Get signatory info for LOA
+                    signatory_info = AUTHORIZED_SIGNATORIES.get(signatory_key, AUTHORIZED_SIGNATORIES["sarah"])
+                    signatory_name = f"{signatory_info['name']} - {signatory_info['title']}"
+
                     # Create package
                     package = create_multi_meeting_package(
                         company_name=company_name,
                         events_configs=events_configs,
                         document_type=doc_type,
-                        company_address=company_address if doc_type == "LOA" else ""
+                        company_address=company_address if doc_type == "LOA" else "",
+                        signature_person=signatory_name if doc_type == "LOA" else None
                     )
 
                     # Generate documents
